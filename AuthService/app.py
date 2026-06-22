@@ -14,6 +14,9 @@ from src.extensions import database_extension as db
 
 # pyrefly: ignore [missing-import]
 from src.middlewares.request_middleware import RequestContextMiddleware
+
+# pyrefly: ignore [missing-import]
+from src.extensions.exception_handler_extensions import app_exception_handler, generic_exception_handler, ApplicationException
 import logging
 
 setup_logging()
@@ -42,6 +45,9 @@ def init_app():
         allow_headers=["*"],
     )
     app.add_middleware(RequestContextMiddleware)
+    app.add_exception_handler(ApplicationException, app_exception_handler)
+    app.add_exception_handler(Exception, generic_exception_handler)
+
     return app
 
 app =  init_app()
