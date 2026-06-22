@@ -6,18 +6,22 @@ logger = logging.getLogger(__name__)
 
 
 class ApplicationException(Exception):
-    def __init__(self, message, error_code, status_code):
-        super().__init__(message)
-        self.error_code = error_code
-        self.status_code = status_code
-        self.message = message
+    error_code: str
+    status_code: int
+    message: str
+
+    def __init__(self, error: dict):
+        self.message = error.get("message") or "Something went wrong"
+        super().__init__(self.message)
+        self.error_code = error.get("error_code") or "internal"
+        self.status_code = int(error.get("status_code") or 500)
 
 
 async def app_exception_handler(
     request: Request,
     exc: Exception
 ):  
-    app_exc = exc if isinstance(exc, ApplicationException) else ApplicationException("Something went wrong", "internal", 500)
+    app_exc = exc if isinstance(exc, ApplicationException) else ApplicationException({"message": "Something went wrong", "error_code": "internal", "status_code": 500})
     request_id = getattr(request.state, "request_id", None)
     logger.warning(
         "[%s] [%s] %s",
