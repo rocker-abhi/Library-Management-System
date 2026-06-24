@@ -2,14 +2,19 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   LogOut, Users, BookOpen, ShieldAlert, Award, FileText,
-  Settings, LayoutDashboard, ChevronRight,
+  Settings, LayoutDashboard, ChevronRight, Feather, Bookmark, DollarSign,
 } from 'lucide-react';
 import UserManagement from './UserManagement.jsx';
+import AuthorManagement from './AuthorManagement.jsx';
+import BookManagement from './BookManagement.jsx';
 
 const SIDEBAR_NAV = [
   { id: 'dashboard', label: 'Dashboard',  Icon: LayoutDashboard },
   { id: 'employees', label: 'Employees',  Icon: Users },
+  { id: 'authors',   label: 'Authors',    Icon: Feather },
   { id: 'library',   label: 'Library',    Icon: BookOpen },
+  { id: 'borrow',    label: 'Borrow',     Icon: Bookmark },
+  { id: 'fine',      label: 'Fine',       Icon: DollarSign },
   { id: 'reports',   label: 'Reports',    Icon: FileText },
   { id: 'settings',  label: 'Settings',   Icon: Settings },
 ];
@@ -165,7 +170,10 @@ export default function Dashboard() {
         <div style={{ padding: '2rem', flex: 1 }}>
           {activeTab === 'dashboard' && <DashboardHome username={username} role={role} />}
           {activeTab === 'employees' && <UserManagement />}
-          {activeTab === 'library'   && <PlaceholderPage title="Library" desc="Book catalog and borrowing management." />}
+          {activeTab === 'authors'   && <AuthorManagement />}
+          {activeTab === 'library'   && <BookManagement />}
+          {activeTab === 'borrow'    && <PlaceholderPage title="Borrowing Management" desc="Track borrowed books, return dates, and histories." />}
+          {activeTab === 'fine'      && <PlaceholderPage title="Fine Management" desc="Track overdue book fines and payment statuses." />}
           {activeTab === 'reports'   && <PlaceholderPage title="Reports" desc="Analytics and system reports." />}
           {activeTab === 'settings'  && <PlaceholderPage title="Settings" desc="System and account configuration." />}
         </div>
