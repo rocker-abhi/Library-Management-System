@@ -28,7 +28,7 @@ async def login(payload: LoginRequest, db: Session = Depends(get_db)):
 @auth_route.get("/me", response_model=AuthMeResponse)
 @jwt_required
 async def authenticate_me(request: Request, db: Session = Depends(get_db)):
-    user_id = request.state.user
+    user_id = request.state.user.get("user_id")
     auth_service = AuthService(db)
     result = await auth_service.authenticate_me(user_id)
     return result

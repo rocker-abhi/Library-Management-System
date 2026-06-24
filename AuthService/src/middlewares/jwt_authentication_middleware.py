@@ -53,7 +53,7 @@ def jwt_required(func):
         payload = helper.validate_access_token(token)
 
         user_info = {
-            "user_id": int(payload["sub"]),
+            "user_id": payload["sub"],
             "role": payload.get("role"),
             "permissions": payload.get("permissions", [])
         }
