@@ -8,6 +8,7 @@ import UserManagement from './UserManagement.jsx';
 import AuthorManagement from './AuthorManagement.jsx';
 import BookManagement from './BookManagement.jsx';
 import BorrowManagement from './BorrowManagement.jsx';
+import FineManagement from './FineManagement.jsx';
 
 const SIDEBAR_NAV = [
   { id: 'dashboard', label: 'Dashboard',  Icon: LayoutDashboard },
@@ -174,7 +175,7 @@ export default function Dashboard() {
           {activeTab === 'authors'   && <AuthorManagement />}
           {activeTab === 'library'   && <BookManagement />}
           {activeTab === 'borrow'    && <BorrowManagement />}
-          {activeTab === 'fine'      && <PlaceholderPage title="Fine Management" desc="Track overdue book fines and payment statuses." />}
+          {activeTab === 'fine'      && <FineManagement />}
           {activeTab === 'reports'   && <PlaceholderPage title="Reports" desc="Analytics and system reports." />}
           {activeTab === 'settings'  && <PlaceholderPage title="Settings" desc="System and account configuration." />}
         </div>

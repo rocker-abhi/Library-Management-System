@@ -41,11 +41,12 @@ class AuthService:
             logger.debug("user not found ....")
             raise ApplicationException(ERRORS["AUTH_ERROR_001"])
             
+        logger.debug(f"Attempting password verify. username={username}, password_len={len(password)}, secret_key={settings.SECRET_KEY}")
         try:
             verify_password(user.password_hash, f"{password}{settings.SECRET_KEY}")
             logger.debug("Password verified successfully.")
-        except Exception:
-            logger.debug("Password verification failed.")
+        except Exception as e:
+            logger.debug(f"Password verification failed: {e}")
             raise ApplicationException(ERRORS["AUTH_ERROR_001"])
             
         if not user.is_active:

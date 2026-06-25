@@ -25,10 +25,11 @@ from src.extensions.jwt_extension import setup_jwt_manager
 
 
 
-from fastapi.exceptions import ValidationException
+from fastapi.exceptions import ValidationException, RequestValidationError
 # pyrefly: ignore [missing-import]
 from src.extensions.exception_handler_extensions import validator_exception_handler
 # pyrefly: ignore [missing-import]
+from src.route import borrow_books_router
 
 
 import logging
@@ -71,10 +72,12 @@ def init_app():
     # app.include_router(author_router)
     # app.include_router(books_router)
     # app.include_router(category_router)
+    app.include_router(borrow_books_router)
     app.add_middleware(RequestContextMiddleware)
     app.add_exception_handler(ApplicationException, app_exception_handler)
     app.add_exception_handler(Exception, generic_exception_handler)
     app.add_exception_handler(ValidationException, validator_exception_handler)
+    app.add_exception_handler(RequestValidationError, validator_exception_handler)
     
 
     return app

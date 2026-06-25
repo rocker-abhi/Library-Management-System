@@ -199,4 +199,18 @@ ERRORS = {
         "error_code": "CATEGORY_ERROR_003",
         "message": "Category name is required.",
     },
+
+    # ─── Borrow Errors ──────────────────────────────────────────────────────────
+
+    "BORROW_ERROR_001": {
+        "status_code": 400,
+        "error_code": "BORROW_ERROR_001",
+        "message": "Due date cannot be before borrow date.",
+    },
+
+    "BORROW_ERROR_002": {
+        "status_code": 404,
+        "error_code": "BORROW_ERROR_002",
+        "message": "Borrow record not found.",
+    },
 }

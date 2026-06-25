@@ -109,14 +109,43 @@ export default function BorrowManagement() {
 
   /* ── Load initial data ─────────────────────────────────────────────────── */
   useEffect(() => {
-    const saved = localStorage.getItem('borrow_transactions');
-    if (saved) {
-      setTransactions(JSON.parse(saved));
+    const fetchTransactions = async () => {
+      try {
+        const res = await fetch('http://localhost:9100/borrow-books/', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          const mapped = (data.data || []).map(record => ({
+            id: record.id,
+            bookId: record.book_id,
+            bookTitle: record.book_title,
+            borrowerName: record.borrower_name,
+            borrowDate: record.borrow_date,
+            dueDate: record.due_date,
+            returnDate: record.return_date || '',
+            status: record.status,
+            fine: record.fine || 0.0,
+          }));
+          setTransactions(mapped);
+        } else {
+          const saved = localStorage.getItem('borrow_transactions');
+          if (saved) setTransactions(JSON.parse(saved));
+        }
+      } catch (err) {
+        console.error("Failed to load borrow transactions from backend", err);
+        const saved = localStorage.getItem('borrow_transactions');
+        if (saved) setTransactions(JSON.parse(saved));
+      }
+    };
+
+    if (token) {
+      fetchTransactions();
     } else {
-      setTransactions(DEFAULT_TRANSACTIONS);
-      localStorage.setItem('borrow_transactions', JSON.stringify(DEFAULT_TRANSACTIONS));
+      const saved = localStorage.getItem('borrow_transactions');
+      if (saved) setTransactions(JSON.parse(saved));
     }
-  }, []);
+  }, [token]);
 
   /* ── Search library books ──────────────────────────────────────────────── */
   useEffect(() => {
@@ -220,7 +249,7 @@ export default function BorrowManagement() {
   };
 
   /* ── Save (create / update) ────────────────────────────────────────────── */
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     if (!formData.borrowerName.trim()) {
       setFormError('Borrower name is required.');
@@ -235,58 +264,161 @@ export default function BorrowManagement() {
 
     if (editingTx) {
       // Update
-      const updated = transactions.map(t => {
-        if (t.id === editingTx.id) {
-          const returnDate = formData.status === 'Returned' ? (t.returnDate || todayStr) : '';
-          return {
-            ...t,
-            borrowerName: formData.borrowerName.trim(),
-            borrowDate: formData.borrowDate,
-            dueDate: formData.dueDate,
-            status: formData.status,
-            returnDate,
-          };
+      try {
+        setFormError('');
+        const returnDate = formData.status === 'Returned' ? (formData.returnDate || todayStr) : null;
+        const payload = {
+          borrower_name: formData.borrowerName.trim(),
+          borrow_date: formData.borrowDate,
+          due_date: formData.dueDate,
+          status: formData.status,
+          return_date: returnDate,
+        };
+
+        const res = await fetch(`http://localhost:9100/borrow-books/${editingTx.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          if (data.errors && Array.isArray(data.errors)) {
+            const errMsgs = data.errors.map(err => `${err.field}: ${err.message}`).join(', ');
+            setFormError(errMsgs || data.message || 'Validation failed.');
+          } else {
+            setFormError(data.message || 'Failed to update transaction.');
+          }
+          return;
         }
-        return t;
-      });
-      saveTransactions(updated);
-      showToast('Borrow transaction updated successfully.', 'success');
+
+        const record = data.data;
+        const updated = transactions.map(t => {
+          if (t.id === editingTx.id) {
+            return {
+              ...t,
+              borrowerName: record.borrower_name,
+              borrowDate: record.borrow_date,
+              dueDate: record.due_date,
+              status: record.status,
+              returnDate: record.return_date || '',
+              fine: record.fine || 0.0,
+            };
+          }
+          return t;
+        });
+        saveTransactions(updated);
+        showToast('Borrow transaction updated successfully.', 'success');
+        handleCloseModal();
+      } catch (err) {
+        console.error("Failed to update borrow transaction", err);
+        setFormError('Failed to connect to the borrow service.');
+      }
     } else {
       // Create
       const selectedBook = books.find(b => b.id === formData.bookId);
       const bookTitle = selectedBook ? selectedBook.title : formData.bookTitle;
 
-      const newTx = {
-        id: `tx-${Date.now()}`,
-        bookId: formData.bookId,
-        bookTitle: bookTitle,
-        borrowerName: formData.borrowerName.trim(),
-        borrowDate: formData.borrowDate,
-        dueDate: formData.dueDate,
-        returnDate: '',
-        status: 'Active',
-      };
-      saveTransactions([newTx, ...transactions]);
-      showToast('Book borrowed successfully.', 'success');
+      try {
+        setFormError('');
+        const payload = {
+          book_id: formData.bookId || null,
+          book_title: bookTitle,
+          borrower_name: formData.borrowerName.trim(),
+          borrow_date: formData.borrowDate,
+          due_date: formData.dueDate,
+        };
+
+        const res = await fetch('http://localhost:9100/borrow-books/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          if (data.errors && Array.isArray(data.errors)) {
+            const errMsgs = data.errors.map(err => `${err.field}: ${err.message}`).join(', ');
+            setFormError(errMsgs || data.message || 'Validation failed.');
+          } else {
+            setFormError(data.message || 'Failed to borrow book.');
+          }
+          return;
+        }
+
+        const record = data.data;
+        const newTx = {
+          id: record.id,
+          bookId: record.book_id,
+          bookTitle: record.book_title,
+          borrowerName: record.borrower_name,
+          borrowDate: record.borrow_date,
+          dueDate: record.due_date,
+          returnDate: record.return_date || '',
+          status: record.status,
+        };
+
+        saveTransactions([newTx, ...transactions]);
+        showToast('Book borrowed successfully.', 'success');
+        handleCloseModal();
+      } catch (err) {
+        console.error("Failed to save borrow transaction", err);
+        setFormError('Failed to connect to the borrow service.');
+      }
     }
-    handleCloseModal();
   };
 
   /* ── Mark as returned ──────────────────────────────────────────────────── */
-  const handleReturn = (txId) => {
+  const handleReturn = async (txId) => {
     const todayStr = new Date().toISOString().split('T')[0];
-    const updated = transactions.map(t => {
-      if (t.id === txId) {
-        return {
-          ...t,
-          status: 'Returned',
-          returnDate: todayStr,
-        };
+    const tx = transactions.find(t => t.id === txId);
+    if (!tx) return;
+
+    try {
+      const payload = {
+        status: 'Returned',
+        return_date: todayStr,
+      };
+
+      const res = await fetch(`http://localhost:9100/borrow-books/${txId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.message || 'Failed to return book.', 'error');
+        return;
       }
-      return t;
-    });
-    saveTransactions(updated);
-    showToast('Book marked as returned.', 'success');
+
+      const record = data.data;
+      const updated = transactions.map(t => {
+        if (t.id === txId) {
+          return {
+            ...t,
+            status: record.status,
+            returnDate: record.return_date || '',
+            fine: record.fine || 0.0,
+          };
+        }
+        return t;
+      });
+      saveTransactions(updated);
+      showToast('Book marked as returned.', 'success');
+    } catch (err) {
+      console.error("Failed to mark book as returned", err);
+      showToast('Failed to connect to the borrow service.', 'error');
+    }
   };
 
   /* ── Delete transaction ────────────────────────────────────────────────── */
@@ -298,13 +430,16 @@ export default function BorrowManagement() {
   };
 
   /* ── Calculate Fine ────────────────────────────────────────────────────── */
-  const getFine = (dueDate, returnDate, status) => {
+  const getFine = (dueDate, returnDate, status, txFine) => {
+    if (txFine !== undefined && txFine !== null) {
+      return txFine;
+    }
     const due = new Date(dueDate);
     const end = returnDate ? new Date(returnDate) : new Date();
     if (end > due && status !== 'Returned') {
       const diffTime = Math.abs(end - due);
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays * 2.0; // $2 per day
+      return diffDays * 20.0; // ₹20 per day
     } else if (status === 'Overdue') {
       return 10.0; // default minimum overdue fine if date parsing is off
     }
@@ -318,7 +453,7 @@ export default function BorrowManagement() {
     let totalFine = 0;
 
     transactions.forEach(t => {
-      const fineVal = getFine(t.dueDate, t.returnDate, t.status);
+      const fineVal = getFine(t.dueDate, t.returnDate, t.status, t.fine);
       totalFine += fineVal;
 
       if (t.status === 'Active') active++;
@@ -461,7 +596,7 @@ export default function BorrowManagement() {
               </thead>
               <tbody>
                 {filteredTransactions.map(tx => {
-                  const fine = getFine(tx.dueDate, tx.returnDate, tx.status);
+                  const fine = getFine(tx.dueDate, tx.returnDate, tx.status, tx.fine);
                   const isTxOverdue = tx.status === 'Overdue' || (tx.status === 'Active' && new Date() > new Date(tx.dueDate));
                   
                   return (
@@ -524,12 +659,6 @@ export default function BorrowManagement() {
                             onMouseEnter={e => { e.currentTarget.style.borderColor = '#4F46E5'; e.currentTarget.style.color = '#4F46E5'; }}
                             onMouseLeave={e => { e.currentTarget.style.borderColor = '#E4E9F7'; e.currentTarget.style.color = '#4B5563'; }}>
                             <Edit2 size={14} />
-                          </button>
-                          <button onClick={() => handleDelete(tx.id)} title="Delete Record"
-                            style={{ padding: '0.4rem', borderRadius: '8px', border: '1.5px solid #FEE2E2', background: '#FFFFFF', color: '#EF4444', cursor: 'pointer', transition: 'all 0.18s' }}
-                            onMouseEnter={e => { e.currentTarget.style.borderColor = '#EF4444'; e.currentTarget.style.background = '#FFF5F5'; }}
-                            onMouseLeave={e => { e.currentTarget.style.borderColor = '#FEE2E2'; e.currentTarget.style.background = '#FFFFFF'; }}>
-                            <Trash2 size={14} />
                           </button>
                         </div>
                       </td>
