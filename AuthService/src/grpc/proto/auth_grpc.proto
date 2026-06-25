@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package auth;
+
+service AuthService {
+
+  rpc GetUsernameByUserId (
+    GetUsernameRequest
+  ) returns (
+    GetUsernameResponse
+  );
+
+}
+
+message GetUsernameRequest {
+  string user_id = 1;
+}
+
+message GetUsernameResponse {
+  string username = 1;
+}
