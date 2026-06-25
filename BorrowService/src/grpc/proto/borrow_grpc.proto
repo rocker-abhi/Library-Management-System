@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package borrow;
+
+service BorrowService {
+  rpc GetBorrowRecord (GetBorrowRequest) returns (GetBorrowResponse);
+}
+
+message GetBorrowRequest {
+  string record_id = 1;
+}
+
+message GetBorrowResponse {
+  string borrower_id = 1;
+  string book_title = 2;
+  string status = 3;
+}

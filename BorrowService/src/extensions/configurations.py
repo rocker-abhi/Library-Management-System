@@ -12,6 +12,10 @@ class Settings(BaseSettings):
 
     MINIMUM_LOGGIN_LEVEL: str = "INFO"
 
+    GRPC_HOST: str
+    GRPC_PORT: int
+
+
     class Config:
         env_file = ".env"
         extra = "ignore"

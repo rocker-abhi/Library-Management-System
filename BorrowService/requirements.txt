@@ -13,3 +13,5 @@ python-jose==3.5.0
 cryptography==49.0.0
 argon2-cffi==25.1.0
 email-validator
+grpcio==1.81.1
+grpcio-tools==1.81.1

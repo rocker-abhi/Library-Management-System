@@ -60,6 +60,7 @@ class BorrowService:
                 elif record.status == "Overdue":
                     fine = 10.0
             record.fine = fine
+            # print(record.borrower_id)
 
         return {
             "success": True,

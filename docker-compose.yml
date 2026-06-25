@@ -136,7 +136,35 @@ services:
       - JWT_ALGORITHM=HS256
       - JWT_ACCESS_TOKEN_EXPIRE_TIME=300
       - JWT_REFRESH_TOKEN_EXPIRE_TIME=604800
+      - AUTH_GRPC_HOST=auth-grpc-service
+      - AUTH_GRPC_PORT=5100
     restart: always
+
+  borrow-grpc-service:
+    build:
+      context: ./BorrowService
+      dockerfile: Dockerfile
+    container_name: hrms-borrow-grpc-service
+    command: ["python", "src/grpc/server.py"]
+    ports:
+      - "10200:10200"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://abhishek:admin%40123@host.docker.internal:5432/hrms_db
+      - SECRET_KEY=my-secret-key
+      - DEBUG=True
+      - MINIMUM_LOGGIN_LEVEL=DEBUG
+      - JWT_SECREAT_KEY=hashMyPassword
+      - JWT_ALGORITHM=HS256
+      - JWT_ACCESS_TOKEN_EXPIRE_TIME=300
+      - JWT_REFRESH_TOKEN_EXPIRE_TIME=604800
+      - GRPC_HOST=0.0.0.0
+      - GRPC_PORT=10200
+      - AUTH_GRPC_HOST=auth-grpc-service
+      - AUTH_GRPC_PORT=5100
+    restart: always
+
 
   nginx-server:
     build:
