@@ -52,8 +52,11 @@ export default function FineManagement() {
   const [userMap,     setUserMap]     = useState({});
   const [toasts,      setToasts]      = useState([]);
   const [actionId,    setActionId]    = useState(null); // Tracks active operation row id
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: '', record: null });
 
   const token = localStorage.getItem('access_token');
+  const role = localStorage.getItem('role') || 'User';
+  const userId = localStorage.getItem('user_id');
 
   const addToast = useCallback((message, type = 'success') => {
     const id = Date.now();
@@ -61,6 +64,8 @@ export default function FineManagement() {
     setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4000);
   }, []);
 
+  // No longer needed - borrower names resolved server-side via gRPC
+  // fetchUsers kept for potential fallback but we primarily use record.borrower_name
   const fetchUsers = useCallback(async () => {
     try {
       const res = await fetch('http://localhost:8000/users', {
@@ -117,31 +122,44 @@ export default function FineManagement() {
   // - "Outstanding": status is ACTIVE/OVERDUE and today is past due date, OR returned with fine > 0
   // - "Resolved": returned with fine = 0, OR active but not yet past due date (no fine).
   const classifiedRecords = useMemo(() => {
-    return records.map(r => {
+    const list = role === 'STUDENT' ? records.filter(r => r.borrower_id === userId) : records;
+    return list.map(r => {
       const isOverdue = !r.return_date && new Date() > new Date(r.due_date);
       const hasFine = r.fine > 0;
-      const isResolved = r.status === 'Returned' && r.fine === 0;
+      const payState = (r.borrow_payment_state || 'UNPAID').toUpperCase();
+      const isPaidOrWaived = payState === 'PAID' || payState === 'WAIVED';
+      const isResolved = isPaidOrWaived || (r.status === 'Returned' && r.fine === 0);
+
+      let displayStatus = r.status === 'Returned' ? 'Returned' : (isOverdue ? 'Overdue' : 'Active');
+      if (payState === 'WAIVED') {
+        displayStatus = 'Waived';
+      } else if (payState === 'PAID') {
+        displayStatus = 'Paid';
+      }
 
       return {
         ...r,
         isOverdue,
         hasFine,
-        displayStatus: r.status === 'Returned' ? 'Returned' : (isOverdue ? 'Overdue' : 'Active'),
+        isResolved,
+        displayStatus,
+        payState,
+        isPaidOrWaived,
       };
     });
-  }, [records]);
+  }, [records, role, userId]);
 
   // Filter & Search records:
   const filteredRecords = useMemo(() => {
     return classifiedRecords.filter(r => {
-      const bName = userMap[r.borrower_id] || r.borrower_id || '';
+      const bName = r.borrower_name || userMap[r.borrower_id] || r.borrower_id || '';
       const matchesSearch = bName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             r.book_title.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesFilter = filterType === 'ALL' ||
-                            (filterType === 'OUTSTANDING' && r.fine > 0) ||
-                            (filterType === 'RESOLVED' && r.status === 'Returned' && r.fine === 0) ||
-                            (filterType === 'ACTIVE_FINES' && r.fine > 0 && r.status !== 'Returned');
+                            (filterType === 'OUTSTANDING' && r.fine > 0 && !r.isPaidOrWaived) ||
+                            (filterType === 'RESOLVED' && r.isResolved) ||
+                            (filterType === 'ACTIVE_FINES' && r.fine > 0 && r.status !== 'Returned' && !r.isPaidOrWaived);
 
       return matchesSearch && matchesFilter;
     });
@@ -162,25 +180,16 @@ export default function FineManagement() {
     };
   }, [classifiedRecords]);
 
-  // Waive fine action (updates due date to match return_date/today's date to clear fine dynamically)
+  // Waive fine action — calls the dedicated PATCH /waive endpoint
   const handleWaiveFine = async (record) => {
-    const bName = userMap[record.borrower_id] || record.borrower_id || 'Borrower';
-    if (!window.confirm(`Are you sure you want to waive the fine of ₹${record.fine} for "${bName}"?`)) return;
-    
+    const bName = record.borrower_name || userMap[record.borrower_id] || 'Borrower';
     setActionId(record.id);
     try {
-      // Cleverly update the due date to match either return_date or borrow_date/today to clear the day difference fine.
-      const targetDate = record.return_date || new Date().toISOString().split('T')[0];
-      const res = await fetch(`http://localhost:9100/borrow-books/${record.id}`, {
-        method: 'PUT',
+      const res = await fetch(`http://localhost:9100/borrow-books/${record.id}/waive`, {
+        method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          due_date: targetDate, // Setting due date = targetDate reduces day difference to 0
-          status: record.status // keep same
-        })
+        }
       });
 
       const data = await res.json();
@@ -195,25 +204,16 @@ export default function FineManagement() {
     }
   };
 
-  // Pay/Clear Fine action (simply sets status to Returned and makes fine 0 by setting due_date = return_date)
+  // Pay/Clear Fine action — calls the dedicated PATCH /pay endpoint
   const handlePayFine = async (record) => {
-    const bName = userMap[record.borrower_id] || record.borrower_id || 'Borrower';
-    if (!window.confirm(`Mark fine of ₹${record.fine} as PAID for "${bName}"?`)) return;
-    
+    const bName = record.borrower_name || userMap[record.borrower_id] || 'Borrower';
     setActionId(record.id);
     try {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const res = await fetch(`http://localhost:9100/borrow-books/${record.id}`, {
-        method: 'PUT',
+      const res = await fetch(`http://localhost:9100/borrow-books/${record.id}/pay`, {
+        method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          status: 'Returned',
-          return_date: todayStr,
-          due_date: todayStr // force clear calculated fine on returned status
-        })
+        }
       });
 
       const data = await res.json();
@@ -366,7 +366,7 @@ export default function FineManagement() {
                             <User size={15} />
                           </div>
                           <div>
-                            <div style={{ fontWeight: 600, color: '#1E1B4B' }}>{userMap[record.borrower_id] || record.borrower_id || 'Unknown User'}</div>
+                            <div style={{ fontWeight: 600, color: '#1E1B4B' }}>{record.borrower_name || userMap[record.borrower_id] || 'Unknown User'}</div>
                           </div>
                         </div>
                       </td>
@@ -417,29 +417,31 @@ export default function FineManagement() {
 
                       {/* Actions */}
                       <td style={{ padding: '0.875rem 1.25rem', textAlign: 'right' }}>
-                        {record.fine > 0 ? (
+                        {record.payState === 'UNPAID' && (record.fine > 0 || record.status === 'Returned') ? (
                           <div style={{ display: 'inline-flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                            <button
-                              title="Waive Fine"
-                              disabled={isWorking}
-                              onClick={() => handleWaiveFine(record)}
-                              style={{
-                                display: 'inline-flex', alignItems: 'center', gap: '0.375rem',
-                                padding: '0.375rem 0.75rem', borderRadius: '8px', border: '1.5px solid #F3F4F6',
-                                background: '#FFFFFF', color: '#6B7280', fontSize: '0.78rem', fontWeight: 600,
-                                cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'var(--font-sans)'
-                              }}
-                              onMouseEnter={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.background = '#F9FAFB'; }}
-                              onMouseLeave={e => { e.currentTarget.style.borderColor = '#F3F4F6'; e.currentTarget.style.background = '#FFFFFF'; }}
-                            >
-                              <Gift size={13} />
-                              Waive
-                            </button>
+                            {role === 'ADMIN' && (
+                              <button
+                                title="Waive Fine"
+                                disabled={isWorking}
+                                onClick={() => setConfirmModal({ isOpen: true, type: 'waive', record })}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: '0.375rem',
+                                  padding: '0.375rem 0.75rem', borderRadius: '8px', border: '1.5px solid #F3F4F6',
+                                  background: '#FFFFFF', color: '#6B7280', fontSize: '0.78rem', fontWeight: 600,
+                                  cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'var(--font-sans)'
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.background = '#F9FAFB'; }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = '#F3F4F6'; e.currentTarget.style.background = '#FFFFFF'; }}
+                              >
+                                <Gift size={13} />
+                                Waive
+                              </button>
+                            )}
 
                             <button
                               title="Register Payment"
                               disabled={isWorking}
-                              onClick={() => handlePayFine(record)}
+                              onClick={() => setConfirmModal({ isOpen: true, type: 'pay', record })}
                               style={{
                                 display: 'inline-flex', alignItems: 'center', gap: '0.375rem',
                                 padding: '0.375rem 0.75rem', borderRadius: '8px', border: 'none',
@@ -455,6 +457,10 @@ export default function FineManagement() {
                               Pay Fine
                             </button>
                           </div>
+                        ) : record.isPaidOrWaived ? (
+                          <span style={{ fontSize: '0.82rem', color: '#059669', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <CheckCircle2 size={13} /> Completed
+                          </span>
                         ) : (
                           <span style={{ fontSize: '0.78rem', color: '#9CA3AF', fontStyle: 'italic' }}>
                             No action required
@@ -469,6 +475,81 @@ export default function FineManagement() {
           </table>
         </div>
       </div>
+
+      {/* Custom Confirmation Modal */}
+      {confirmModal.isOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(30,27,75,0.4)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+          animation: 'fadeIn 0.2s ease-out',
+        }}>
+          <div style={{
+            background: '#FFFFFF', borderRadius: '20px', border: '1.5px solid #E4E9F7',
+            width: '420px', padding: '1.75rem', boxShadow: '0 20px 50px rgba(30,27,75,0.15)',
+            display: 'flex', flexDirection: 'column', gap: '1.25rem',
+            animation: 'scaleUp 0.3s cubic-bezier(0.34,1.56,0.64,1)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{
+                width: '38px', height: '38px', borderRadius: '10px',
+                background: confirmModal.type === 'pay' ? 'rgba(5,150,105,0.08)' : 'rgba(79,70,229,0.08)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: confirmModal.type === 'pay' ? '#059669' : '#4F46E5'
+              }}>
+                <DollarSign size={18} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#1E1B4B' }}>
+                {confirmModal.type === 'pay' ? 'Confirm Payment' : 'Confirm Waiver'}
+              </h3>
+            </div>
+            
+            <p style={{ margin: 0, fontSize: '0.9rem', color: '#4B5563', lineHeight: 1.5 }}>
+              {confirmModal.type === 'pay' ? (
+                <>Mark the fine of <strong style={{ color: '#059669' }}>₹{confirmModal.record?.fine.toFixed(2)}</strong> as <strong>PAID</strong> for <strong style={{ color: '#1E1B4B' }}>{confirmModal.record?.borrower_name || userMap[confirmModal.record?.borrower_id] || 'Borrower'}</strong>? This will clear the fine.</>
+              ) : (
+                <>Are you sure you want to <strong style={{ color: '#4F46E5' }}>WAIVE</strong> the fine of <strong style={{ color: '#DC2626' }}>₹{confirmModal.record?.fine.toFixed(2)}</strong> for <strong style={{ color: '#1E1B4B' }}>{confirmModal.record?.borrower_name || userMap[confirmModal.record?.borrower_id] || 'Borrower'}</strong>?</>
+              )}
+            </p>
+
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => setConfirmModal({ isOpen: false, type: '', record: null })}
+                style={{
+                  flex: 1, padding: '0.625rem', borderRadius: '10px', border: '1.5px solid #E4E9F7',
+                  background: '#FFFFFF', color: '#4B5563', fontWeight: 600, fontSize: '0.875rem',
+                  cursor: 'pointer', transition: 'all 0.18s', fontFamily: 'var(--font-sans)'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#F8FAFF'}
+                onMouseLeave={e => e.currentTarget.style.background = '#FFFFFF'}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirmModal.type === 'pay') {
+                    handlePayFine(confirmModal.record);
+                  } else {
+                    handleWaiveFine(confirmModal.record);
+                  }
+                  setConfirmModal({ isOpen: false, type: '', record: null });
+                }}
+                style={{
+                  flex: 1, padding: '0.625rem', borderRadius: '10px', border: 'none',
+                  background: confirmModal.type === 'pay' ? 'linear-gradient(135deg, #059669, #10B981)' : 'linear-gradient(135deg, #4F46E5, #6366F1)',
+                  color: '#FFFFFF', fontWeight: 600, fontSize: '0.875rem',
+                  cursor: 'pointer', transition: 'all 0.18s', fontFamily: 'var(--font-sans)',
+                  boxShadow: confirmModal.type === 'pay' ? '0 4px 12px rgba(5,150,105,0.2)' : '0 4px 12px rgba(79,70,229,0.2)'
+                }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -506,6 +587,8 @@ function StatusBadge({ type }) {
     Returned: { bg: 'rgba(5,150,105,0.08)', color: '#059669', text: 'Returned' },
     Overdue:  { bg: 'rgba(239,68,68,0.08)',  color: '#EF4444',  text: 'Overdue' },
     Active:   { bg: 'rgba(79,70,229,0.08)',  color: '#4F46E5',  text: 'Active' },
+    Waived:   { bg: 'rgba(16,185,129,0.08)',  color: '#10B981',  text: 'Waived' },
+    Paid:     { bg: 'rgba(5,150,105,0.08)', color: '#059669', text: 'Paid' },
   };
 
   const s = map[type] || map.Active;

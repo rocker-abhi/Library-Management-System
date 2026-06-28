@@ -5,8 +5,12 @@ import sys
 import signal
 import re
 
-PORTS = [80, 5173, 8000, 6379]
-SERVICES = ["hrms-nginx-server", "hrms-frontend", "hrms-auth-service", "hrms-redis"]
+PORTS = [80, 5173, 8000, 6379, 5100, 9000, 10100, 9100, 10200]
+SERVICES = [
+    "hrms-nginx-server", "hrms-frontend", "hrms-auth-service", "hrms-redis",
+    "hrms-auth-grpc-service", "hrms-book-service", "hrms-book-grpc-service",
+    "hrms-borrow-service", "hrms-borrow-grpc-service"
+]
 
 def run_command(cmd):
     try:

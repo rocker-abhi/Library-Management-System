@@ -8,6 +8,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.models.base import BaseModel
 # pyrefly: ignore [missing-import]
 from src.enums.Borrow_enums import BorrowEnums
+# pyrefly: ignore [missing-import]
+from src.enums.payment_state import PaymentEnums
 
 
 class Borrow_Record_model(BaseModel):
@@ -22,6 +24,9 @@ class Borrow_Record_model(BaseModel):
     return_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(
         String(50), nullable=False, default=BorrowEnums.ACTIVE
+    )
+    borrow_payment_state: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, default=PaymentEnums.UNPAID
     )
 
     def __repr__(self) -> str:

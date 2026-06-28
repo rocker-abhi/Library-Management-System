@@ -14,6 +14,8 @@ from src.models.borrow_record import Borrow_Record_model
 from src.validators.borrow_validator import BorrowCreateRequest, BorrowUpdateRequest
 # pyrefly: ignore [missing-import]
 from src.grpc.client.auth_grpc_client import AuthGrpcClient
+# pyrefly: ignore [missing-import]
+from src.enums.payment_state import PaymentEnums
 
 
 logger = logging.getLogger(__name__)
@@ -62,7 +64,9 @@ class BorrowService:
         try:
             for record in records:
                 fine = 0.0
-                if record.return_date:
+                if record.borrow_payment_state in [PaymentEnums.PAID, PaymentEnums.WAIVED, "paid", "waived"]:
+                    fine = 0.0
+                elif record.return_date:
                     if record.return_date > record.due_date:
                         fine = float((record.return_date - record.due_date).days * 20.0)
                 else:
@@ -108,6 +112,8 @@ class BorrowService:
             record.return_date = payload.return_date
         elif payload.status == "Returned" and not record.return_date:
             record.return_date = date.today()
+        if payload.borrow_payment_state is not None:
+            record.borrow_payment_state = payload.borrow_payment_state.strip()
 
         self.db.commit()
         self.db.refresh(record)
@@ -115,7 +121,9 @@ class BorrowService:
         # Calculate fine for the updated record
         today = date.today()
         fine = 0.0
-        if record.return_date:
+        if record.borrow_payment_state in [PaymentEnums.PAID, PaymentEnums.WAIVED, "paid", "waived"]:
+            fine = 0.0
+        elif record.return_date:
             if record.return_date > record.due_date:
                 fine = float((record.return_date - record.due_date).days * 20.0)
         else:
@@ -128,11 +136,76 @@ class BorrowService:
         client = AuthGrpcClient()
         try:
             record.borrower_name = client.get_username_by_user_id(str(record.borrower_id)) or "Unknown User"
+        except Exception as e:
+            logger.error("Unable to fetch borrower_name from auth gRPC server: %s", e)
+            record.borrower_name = "Unknown User"
         finally:
             client.close()
 
         return {
             "success": True,
             "message": "Borrow transaction updated successfully.",
+            "data": record
+        }
+
+    async def pay_fine(self, record_id: UUID):
+        """Mark the fine for a borrow record as paid."""
+        record = self.repo.get_borrow_record_by_id(record_id)
+        if not record:
+            raise ApplicationException(ERRORS["BORROW_ERROR_002"])
+
+        record.borrow_payment_state = PaymentEnums.PAID
+        if record.status != "Returned":
+            record.status = "Returned"
+        if not record.return_date:
+            record.return_date = date.today()
+
+        self.db.commit()
+        self.db.refresh(record)
+
+        # Fine becomes 0 after payment
+        record.fine = 0.0
+
+        client = AuthGrpcClient()
+        try:
+            record.borrower_name = client.get_username_by_user_id(str(record.borrower_id)) or "Unknown User"
+        except Exception as e:
+            logger.error("Unable to fetch borrower_name from auth gRPC server: %s", e)
+            record.borrower_name = "Unknown User"
+        finally:
+            client.close()
+
+        return {
+            "success": True,
+            "message": "Fine marked as paid successfully.",
+            "data": record
+        }
+
+    async def waive_fine(self, record_id: UUID):
+        """Waive the fine for a borrow record."""
+        record = self.repo.get_borrow_record_by_id(record_id)
+        if not record:
+            raise ApplicationException(ERRORS["BORROW_ERROR_002"])
+
+        record.borrow_payment_state = PaymentEnums.WAIVED
+
+        self.db.commit()
+        self.db.refresh(record)
+
+        # Fine becomes 0 after waiver
+        record.fine = 0.0
+
+        client = AuthGrpcClient()
+        try:
+            record.borrower_name = client.get_username_by_user_id(str(record.borrower_id)) or "Unknown User"
+        except Exception as e:
+            logger.error("Unable to fetch borrower_name from auth gRPC server: %s", e)
+            record.borrower_name = "Unknown User"
+        finally:
+            client.close()
+
+        return {
+            "success": True,
+            "message": "Fine waived successfully.",
             "data": record
         }

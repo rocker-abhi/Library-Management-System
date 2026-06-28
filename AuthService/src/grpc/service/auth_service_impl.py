@@ -14,7 +14,7 @@ import auth_grpc_pb2
 import auth_grpc_pb2_grpc
 
 # pyrefly: ignore [missing-import]
-from src.extensions.database_extension import postgres_database
+from src.extensions import database_extension
 # pyrefly: ignore [missing-import]
 from src.repository.database_repository import UserRepository
 
@@ -36,7 +36,7 @@ class AuthServiceServicer(auth_grpc_pb2_grpc.AuthServiceServicer):
             context.set_details("Invalid UUID format for user_id")
             return auth_grpc_pb2.GetUsernameResponse(username="")
         
-        db = postgres_database.get_session()
+        db = database_extension.postgres_database.SessionLocal()
         try:
             repo = UserRepository(db)
             user = repo.get_user_by_id(uid)

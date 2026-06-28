@@ -17,7 +17,6 @@ const SIDEBAR_NAV = [
   { id: 'library',   label: 'Library',    Icon: BookOpen },
   { id: 'borrow',    label: 'Borrow',     Icon: Bookmark },
   { id: 'fine',      label: 'Fine',       Icon: DollarSign },
-  { id: 'reports',   label: 'Reports',    Icon: FileText },
   { id: 'settings',  label: 'Settings',   Icon: Settings },
 ];
 
@@ -71,6 +70,8 @@ export default function Dashboard() {
             Navigation
           </p>
           {SIDEBAR_NAV.map(({ id, label, Icon }) => {
+            if (id === 'employees' && role !== 'ADMIN') return null;
+            if (id === 'authors' && role !== 'ADMIN' && role !== 'SUPERVISOR') return null;
             const isActive = activeTab === id;
             return (
               <button key={id} onClick={() => setActiveTab(id)}
@@ -176,7 +177,6 @@ export default function Dashboard() {
           {activeTab === 'library'   && <BookManagement />}
           {activeTab === 'borrow'    && <BorrowManagement />}
           {activeTab === 'fine'      && <FineManagement />}
-          {activeTab === 'reports'   && <PlaceholderPage title="Reports" desc="Analytics and system reports." />}
           {activeTab === 'settings'  && <PlaceholderPage title="Settings" desc="System and account configuration." />}
         </div>
       </main>

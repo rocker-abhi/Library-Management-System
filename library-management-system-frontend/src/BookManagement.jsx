@@ -310,7 +310,7 @@ export default function BookManagement() {
           <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#1E1B4B' }}>Book Catalog</h2>
           <p style={{ margin: '0.25rem 0 0', fontSize: '0.82rem', color: '#9CA3AF' }}>Manage library books, catalog details, and availability.</p>
         </div>
-        {(
+        {(role === 'ADMIN' || role === 'SUPERVISOR') && (
           <button onClick={() => handleOpenModal()}
             style={{
               display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.625rem 1.125rem',
@@ -387,7 +387,7 @@ export default function BookManagement() {
                   <th style={{ padding: '1rem 1.5rem', fontSize: '0.75rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Category</th>
                   <th style={{ padding: '1rem 1.5rem', fontSize: '0.75rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Authors</th>
                   <th style={{ padding: '1rem 1.5rem', fontSize: '0.75rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Availability</th>
-                  {<th style={{ padding: '1rem 1.5rem', fontSize: '0.75rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Actions</th>}
+                  {(role === 'ADMIN' || role === 'SUPERVISOR') && <th style={{ padding: '1rem 1.5rem', fontSize: '0.75rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -437,7 +437,7 @@ export default function BookManagement() {
                     <td style={{ padding: '1rem 1.5rem' }}>
                       <AvailabilityBadge available={book.available_copies} total={book.total_copies} />
                     </td>
-                    {(
+                    {(role === 'ADMIN' || role === 'SUPERVISOR') && (
                       <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
                           <button onClick={() => handleOpenModal(book)} title="Edit Book"
@@ -446,12 +446,14 @@ export default function BookManagement() {
                             onMouseLeave={e => { e.currentTarget.style.borderColor = '#E4E9F7'; e.currentTarget.style.color = '#4B5563'; e.currentTarget.style.background = '#FFFFFF'; }}>
                             <Edit2 size={14} />
                           </button>
-                          <button onClick={() => handleDelete(book.id)} title="Delete Book"
-                            style={{ padding: '0.4rem', borderRadius: '8px', border: '1.5px solid #FEE2E2', background: '#FFFFFF', color: '#EF4444', cursor: 'pointer', transition: 'all 0.18s' }}
-                            onMouseEnter={e => { e.currentTarget.style.borderColor = '#EF4444'; e.currentTarget.style.background = '#FFF5F5'; }}
-                            onMouseLeave={e => { e.currentTarget.style.borderColor = '#FEE2E2'; e.currentTarget.style.background = '#FFFFFF'; }}>
-                            <Trash2 size={14} />
-                          </button>
+                          {role === 'ADMIN' && (
+                            <button onClick={() => handleDelete(book.id)} title="Delete Book"
+                              style={{ padding: '0.4rem', borderRadius: '8px', border: '1.5px solid #FEE2E2', background: '#FFFFFF', color: '#EF4444', cursor: 'pointer', transition: 'all 0.18s' }}
+                              onMouseEnter={e => { e.currentTarget.style.borderColor = '#EF4444'; e.currentTarget.style.background = '#FFF5F5'; }}
+                              onMouseLeave={e => { e.currentTarget.style.borderColor = '#FEE2E2'; e.currentTarget.style.background = '#FFFFFF'; }}>
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     )}

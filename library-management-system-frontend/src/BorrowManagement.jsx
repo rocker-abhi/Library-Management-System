@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Bookmark, Plus, X, Search, ChevronDown, CheckCircle2, AlertTriangle,
-  Loader2, Calendar, User, BookOpen, Trash2, Edit2, Check, DollarSign
+  Loader2, User, BookOpen, Edit2, Check, DollarSign, Gift, CreditCard
 } from 'lucide-react';
 
 /* ─── Shared Styles ──────────────────────────────────────────────────────── */
@@ -102,6 +102,8 @@ export default function BorrowManagement() {
   const [filterStatus, setFilterStatus] = useState('ALL');
 
   const token = localStorage.getItem('access_token');
+  const role = localStorage.getItem('role') || 'User';
+  const userId = localStorage.getItem('user_id');
 
   const showToast = useCallback((message, type = 'success') => {
     const id = Date.now();
@@ -148,6 +150,7 @@ export default function BorrowManagement() {
             returnDate: record.return_date || '',
             status: record.status,
             fine: record.fine || 0.0,
+            paymentState: (record.borrow_payment_state && record.borrow_payment_state.toLowerCase() !== 'unpaid') ? record.borrow_payment_state.toLowerCase() : null,
           }));
           setTransactions(mapped);
         } else {
@@ -252,15 +255,20 @@ export default function BorrowManagement() {
       setSelectedUserId(tx.borrowerId);
     } else {
       setEditingTx(null);
+      const loggedInRole = localStorage.getItem('role') || 'User';
+      const loggedInUserId = localStorage.getItem('user_id') || '';
+      const loggedInUsername = localStorage.getItem('username') || '';
+
       setFormData({
         bookId: '',
         bookTitle: '',
-        borrowerName: '',
-        borrowerId: '',
+        borrowerName: loggedInRole === 'STUDENT' ? loggedInUsername : '',
+        borrowerId: loggedInRole === 'STUDENT' ? loggedInUserId : '',
         borrowDate: today,
         dueDate: twoWeeks,
         status: 'Active',
       });
+      setSelectedUserId(loggedInRole === 'STUDENT' ? loggedInUserId : '');
     }
     setIsModalOpen(true);
   };
@@ -435,6 +443,7 @@ export default function BorrowManagement() {
             status: record.status,
             returnDate: record.return_date || '',
             fine: record.fine || 0.0,
+            paymentState: (record.borrow_payment_state && record.borrow_payment_state.toLowerCase() !== 'unpaid') ? record.borrow_payment_state.toLowerCase() : null,
           };
         }
         return t;
@@ -446,6 +455,7 @@ export default function BorrowManagement() {
       showToast('Failed to connect to the borrow service.', 'error');
     }
   };
+
 
   /* ── Delete transaction ────────────────────────────────────────────────── */
   const handleDelete = (txId) => {
@@ -478,7 +488,9 @@ export default function BorrowManagement() {
     let overdue = 0;
     let totalFine = 0;
 
-    transactions.forEach(t => {
+    const list = role === 'STUDENT' ? transactions.filter(t => t.borrowerId === userId) : transactions;
+
+    list.forEach(t => {
       const fineVal = getFine(t.dueDate, t.returnDate, t.status, t.fine);
       totalFine += fineVal;
 
@@ -487,23 +499,24 @@ export default function BorrowManagement() {
     });
 
     return {
-      total: transactions.length,
+      total: list.length,
       active,
       overdue,
       totalFine,
     };
-  }, [transactions]);
+  }, [transactions, role, userId]);
 
   /* ── Filtered transactions ─────────────────────────────────────────────── */
   const filteredTransactions = useMemo(() => {
-    return transactions.filter(t => {
+    const list = role === 'STUDENT' ? transactions.filter(t => t.borrowerId === userId) : transactions;
+    return list.filter(t => {
       const q = searchTerm.toLowerCase();
       const bName = t.borrowerName || userMap[t.borrowerId] || t.borrowerId || '';
       const matchSearch = t.bookTitle.toLowerCase().includes(q) || bName.toLowerCase().includes(q);
       const matchStatus = filterStatus === 'ALL' || t.status.toUpperCase() === filterStatus;
       return matchSearch && matchStatus;
     });
-  }, [transactions, searchTerm, filterStatus, userMap]);
+  }, [transactions, searchTerm, filterStatus, userMap, role, userId]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -617,7 +630,7 @@ export default function BorrowManagement() {
                   <th style={{ padding: '1rem 1.5rem', fontSize: '0.75rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Borrower</th>
                   <th style={{ padding: '1rem 1.5rem', fontSize: '0.75rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Dates</th>
                   <th style={{ padding: '1rem 1.5rem', fontSize: '0.75rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
-                  <th style={{ padding: '1rem 1.5rem', fontSize: '0.75rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Fine</th>
+                  <th style={{ padding: '1rem 1.5rem', fontSize: '0.75rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Fine / Payment</th>
                   <th style={{ padding: '1rem 1.5rem', fontSize: '0.75rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
@@ -658,21 +671,40 @@ export default function BorrowManagement() {
                       </td>
 
                       <td style={{ padding: '1rem 1.5rem' }}>
-                        <span style={{
-                          padding: '0.25rem 0.625rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600,
-                          background: tx.status === 'Returned' ? 'rgba(5,150,105,0.08)' : (isTxOverdue ? 'rgba(220,38,38,0.08)' : 'rgba(79,70,229,0.08)'),
-                          color: tx.status === 'Returned' ? '#059669' : (isTxOverdue ? '#DC2626' : '#4F46E5'),
-                        }}>
-                          {isTxOverdue ? 'Overdue' : tx.status}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                          <span style={{
+                            display: 'inline-flex', padding: '0.25rem 0.625rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600,
+                            background: tx.status === 'Returned' ? 'rgba(5,150,105,0.08)' : (isTxOverdue ? 'rgba(220,38,38,0.08)' : 'rgba(79,70,229,0.08)'),
+                            color: tx.status === 'Returned' ? '#059669' : (isTxOverdue ? '#DC2626' : '#4F46E5'),
+                          }}>
+                            {isTxOverdue ? 'Overdue' : tx.status}
+                          </span>
+                          {tx.paymentState === 'paid' && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 600, background: 'rgba(5,150,105,0.08)', color: '#059669' }}>
+                              <CreditCard size={10} /> Paid
+                            </span>
+                          )}
+                          {tx.paymentState === 'waived' && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 600, background: 'rgba(16,185,129,0.08)', color: '#10B981' }}>
+                              <Gift size={10} /> Waived
+                            </span>
+                          )}
+                        </div>
                       </td>
 
-                      <td style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: 600, color: fine > 0 ? '#DC2626' : '#9CA3AF' }}>
-                        {fine > 0 ? `$${fine.toFixed(2)}` : '—'}
+                      <td style={{ padding: '1rem 1.5rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                          <span style={{ fontSize: '0.875rem', fontWeight: 600, color: fine > 0 && !tx.paymentState ? '#DC2626' : '#9CA3AF' }}>
+                            {fine > 0 ? `₹${fine.toFixed(2)}` : '—'}
+                          </span>
+                          {fine > 0 && tx.paymentState && (
+                            <span style={{ fontSize: '0.7rem', color: '#9CA3AF', fontStyle: 'italic' }}>cleared</span>
+                          )}
+                        </div>
                       </td>
 
                       <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
+                        <div style={{ display: 'inline-flex', gap: '0.4rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                           {tx.status !== 'Returned' && (
                             <button onClick={() => handleReturn(tx.id)} title="Mark Returned"
                               style={{ padding: '0.4rem', borderRadius: '8px', border: '1.5px solid #A7F3D0', background: '#FFFFFF', color: '#059669', cursor: 'pointer', transition: 'all 0.18s' }}
@@ -681,12 +713,14 @@ export default function BorrowManagement() {
                               <Check size={14} />
                             </button>
                           )}
-                          <button onClick={() => handleOpenModal(tx)} title="Edit Details"
-                            style={{ padding: '0.4rem', borderRadius: '8px', border: '1.5px solid #E4E9F7', background: '#FFFFFF', color: '#4B5563', cursor: 'pointer', transition: 'all 0.18s' }}
-                            onMouseEnter={e => { e.currentTarget.style.borderColor = '#4F46E5'; e.currentTarget.style.color = '#4F46E5'; }}
-                            onMouseLeave={e => { e.currentTarget.style.borderColor = '#E4E9F7'; e.currentTarget.style.color = '#4B5563'; }}>
-                            <Edit2 size={14} />
-                          </button>
+                          {role !== 'STUDENT' && (
+                            <button onClick={() => handleOpenModal(tx)} title="Edit Details"
+                              style={{ padding: '0.4rem', borderRadius: '8px', border: '1.5px solid #E4E9F7', background: '#FFFFFF', color: '#4B5563', cursor: 'pointer', transition: 'all 0.18s' }}
+                              onMouseEnter={e => { e.currentTarget.style.borderColor = '#4F46E5'; e.currentTarget.style.color = '#4F46E5'; }}
+                              onMouseLeave={e => { e.currentTarget.style.borderColor = '#E4E9F7'; e.currentTarget.style.color = '#4B5563'; }}>
+                              <Edit2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </td>
 
@@ -802,15 +836,15 @@ export default function BorrowManagement() {
                 <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#4B5563', display: 'block', marginBottom: '0.375rem' }}>Borrower Name *</label>
                 <div style={{ position: 'relative' }}>
                   <User size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
-                  <input type="text" required value={formData.borrowerName}
+                  <input type="text" required disabled={role === 'STUDENT'} value={formData.borrowerName}
                     onChange={e => {
                       setFormData({ ...formData, borrowerName: e.target.value });
                       setSelectedUserId('');
                     }}
-                    style={{ ...inputStyle, paddingLeft: '2rem' }} onFocus={focusInput} onBlur={blurInput} placeholder="e.g. Jane Doe" />
+                    style={{ ...inputStyle, paddingLeft: '2rem', background: role === 'STUDENT' ? '#F3F4F6' : '#F8FAFF', color: role === 'STUDENT' ? '#9CA3AF' : '#1E1B4B' }} onFocus={focusInput} onBlur={blurInput} placeholder="e.g. Jane Doe" />
 
                   {/* Users suggestions list */}
-                  {formData.borrowerName.trim() !== '' && !selectedUserId && (
+                  {role !== 'STUDENT' && formData.borrowerName.trim() !== '' && !selectedUserId && (
                     <div style={{
                       position: 'absolute', zIndex: 10, left: 0, right: 0,
                       border: '1.5px solid #E4E9F7', borderRadius: '10px', background: '#FFFFFF',
@@ -880,6 +914,28 @@ export default function BorrowManagement() {
                   </div>
                 </div>
               )}
+
+              {/* Payment State (Edit only — read-only info + quick action) */}
+              {editingTx && (() => {
+                const txFine = editingTx.fine || 0;
+                const ps = editingTx.paymentState;
+                return txFine > 0 || ps ? (
+                  <div style={{ padding: '0.875rem 1rem', borderRadius: '10px', background: ps === 'paid' ? 'rgba(5,150,105,0.05)' : ps === 'waived' ? 'rgba(16,185,129,0.05)' : 'rgba(220,38,38,0.05)', border: `1.5px solid ${ps === 'paid' ? 'rgba(5,150,105,0.2)' : ps === 'waived' ? 'rgba(16,185,129,0.2)' : 'rgba(220,38,38,0.15)'}` }}>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>Fine &amp; Payment Status</div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                      <div>
+                        <span style={{ fontSize: '1rem', fontWeight: 700, color: ps ? '#059669' : '#DC2626' }}>₹{txFine.toFixed(2)}</span>
+                        <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', fontWeight: 600, padding: '0.2rem 0.5rem', borderRadius: '6px',
+                          background: ps === 'paid' ? 'rgba(5,150,105,0.1)' : ps === 'waived' ? 'rgba(16,185,129,0.1)' : 'rgba(220,38,38,0.08)',
+                          color: ps === 'paid' ? '#059669' : ps === 'waived' ? '#10B981' : '#DC2626' }}>
+                          {ps === 'paid' ? '✓ Paid' : ps === 'waived' ? '✓ Waived' : 'Outstanding'}
+                        </span>
+                      </div>
+
+                    </div>
+                  </div>
+                ) : null;
+              })()}
 
               {/* Buttons */}
               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>

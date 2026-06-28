@@ -53,4 +53,25 @@ async def update_borrow_record(
     return await service.update_borrow_record(record_id, payload)
 
 
+@borrow_books_router.patch("/{record_id}/pay", response_model=BorrowResponse)
+@jwt_required
+async def pay_borrow_fine(
+    record_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Mark the fine for a borrow record as paid. Also marks the book as Returned."""
+    service = BorrowService(db)
+    return await service.pay_fine(record_id)
 
+
+@borrow_books_router.patch("/{record_id}/waive", response_model=BorrowResponse)
+@jwt_required
+async def waive_borrow_fine(
+    record_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Waive the fine for a borrow record without requiring payment."""
+    service = BorrowService(db)
+    return await service.waive_fine(record_id)

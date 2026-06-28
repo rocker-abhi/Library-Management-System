@@ -22,6 +22,7 @@ class BorrowRecordResponse(BaseModel):
     return_date: Optional[date] = None
     status: str
     fine: float = 0.0
+    borrow_payment_state: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -43,3 +44,4 @@ class BorrowUpdateRequest(BaseModel):
     due_date: Optional[date] = None
     status: Optional[str] = Field(None, min_length=1, max_length=50)
     return_date: Optional[date] = None
+    borrow_payment_state: Optional[str] = None
