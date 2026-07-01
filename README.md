@@ -58,21 +58,29 @@ graph TD
   - Create a database named `hrms_db`.
   - Credentials must match `abhishek` (user) and `admin@123` (password) or be adjusted in `.env` configurations.
 
-### ⚙️ Quick Start
-
-We provide two pre-configured shell scripts to clean ports, boot the container stack, and seed the database.
+We provide pre-configured scripts for both Linux/macOS (`.sh`) and Windows (`.bat`) to clean ports, boot the container stack, and seed the database.
 
 #### 1. Start the Stack
 Run the bootstrap script to automatically set the Docker context, clear conflicting ports, and launch the containers:
-```bash
-./run.sh
-```
+* **Linux/macOS**:
+  ```bash
+  ./run.sh
+  ```
+* **Windows**:
+  ```cmd
+  run.bat
+  ```
 
 #### 2. Run Database Migrations & Seed Data
-When running the stack for the first time, apply the database schemas and populate default parameters (permissions, roles, superuser):
-```bash
-./seed.sh
-```
+When running the stack for the first time, apply the database schemas and populate default parameters (permissions and roles/groups):
+* **Linux/macOS** (includes superuser creation):
+  ```bash
+  ./seed.sh
+  ```
+* **Windows** (seeds database schema, permissions, and roles/groups only):
+  ```cmd
+  seed.bat
+  ```
 
 ---
 
