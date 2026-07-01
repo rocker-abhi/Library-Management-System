@@ -20,7 +20,7 @@ const SIDEBAR_NAV = [
   { id: 'settings',  label: 'Settings',   Icon: Settings },
 ];
 
-export default function Dashboard() {
+export default function Dashboard({ setIsAuthenticated }) {
   const navigate = useNavigate();
   const role     = localStorage.getItem('role')     || 'User';
   const username = localStorage.getItem('username') || localStorage.getItem('user_id') || 'User';
@@ -29,6 +29,9 @@ export default function Dashboard() {
 
   const handleLogout = () => {
     localStorage.clear();
+    if (setIsAuthenticated) {
+      setIsAuthenticated(false);
+    }
     navigate('/login');
   };
 
@@ -177,7 +180,7 @@ export default function Dashboard() {
           {activeTab === 'library'   && <BookManagement />}
           {activeTab === 'borrow'    && <BorrowManagement />}
           {activeTab === 'fine'      && <FineManagement />}
-          {activeTab === 'settings'  && <PlaceholderPage title="Settings" desc="System and account configuration." />}
+          {activeTab === 'settings'  && <SettingsView />}
         </div>
       </main>
     </div>
@@ -254,18 +257,224 @@ function DashboardHome({ username, role }) {
   );
 }
 
-function PlaceholderPage({ title, desc }) {
+function SettingsView() {
+  const username = localStorage.getItem('username') || '';
+  const role = localStorage.getItem('role') || 'User';
+  const userId = localStorage.getItem('user_id') || '';
+
+  const [currentPassword, setCurrentPassword] = React.useState('');
+  const [newPassword, setNewPassword] = React.useState('');
+  const [confirmPassword, setConfirmPassword] = React.useState('');
+  
+  const [loading, setLoading] = React.useState(false);
+  const [message, setMessage] = React.useState({ text: '', type: '' });
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    setMessage({ text: '', type: '' });
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setMessage({ text: 'All fields are required.', type: 'error' });
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setMessage({ text: 'New password must be at least 8 characters long.', type: 'error' });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setMessage({ text: 'New password and confirm password do not match.', type: 'error' });
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch('/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: username.toLowerCase(),
+          old_password: currentPassword,
+          new_password: newPassword
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update password.');
+      }
+
+      setMessage({ text: 'Password changed successfully!', type: 'success' });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      setMessage({ text: err.message || 'Something went wrong.', type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputStyle = {
+    width: '100%',
+    padding: '0.625rem 0.875rem',
+    border: '1.5px solid #E4E9F7',
+    borderRadius: '10px',
+    background: '#F8FAFF',
+    color: '#1E1B4B',
+    fontSize: '0.875rem',
+    outline: 'none',
+    transition: 'all 0.18s',
+  };
+
+  const labelStyle = {
+    display: 'block',
+    fontSize: '0.78rem',
+    fontWeight: 600,
+    color: '#4B5563',
+    marginBottom: '0.375rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em'
+  };
+
   return (
-    <div style={{
-      background: '#FFFFFF', borderRadius: '16px', padding: '4rem 2rem',
-      border: '1.5px solid #E4E9F7', textAlign: 'center',
-      boxShadow: '0 2px 8px rgba(79,70,229,0.04)',
-    }}>
-      <div style={{ width: '56px', height: '56px', borderRadius: '14px', background: 'rgba(79,70,229,0.08)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
-        <Settings size={26} color="#4F46E5" strokeWidth={1.6} />
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+      {/* Profile Info Card */}
+      <div style={{
+        background: '#FFFFFF', borderRadius: '16px', padding: '1.75rem',
+        border: '1.5px solid #E4E9F7', boxShadow: '0 2px 8px rgba(79,70,229,0.04)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+          <div style={{
+            width: '40px', height: '40px', borderRadius: '10px',
+            background: 'rgba(79,70,229,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#4F46E5'
+          }}>
+            <Users size={20} />
+          </div>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#1E1B4B' }}>Profile Information</h3>
+            <p style={{ margin: 0, fontSize: '0.78rem', color: '#9CA3AF' }}>Your personal account information.</p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div>
+            <span style={{ fontSize: '0.7rem', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>User ID</span>
+            <div style={{ fontSize: '0.9rem', color: '#1E1B4B', fontWeight: 600, wordBreak: 'break-all', marginTop: '0.2rem' }}>{userId}</div>
+          </div>
+          <div style={{ borderTop: '1px solid #F1F4FA', paddingTop: '0.8rem' }}>
+            <span style={{ fontSize: '0.7rem', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Username</span>
+            <div style={{ fontSize: '0.9rem', color: '#1E1B4B', fontWeight: 600, marginTop: '0.2rem' }}>{username}</div>
+          </div>
+          <div style={{ borderTop: '1px solid #F1F4FA', paddingTop: '0.8rem' }}>
+            <span style={{ fontSize: '0.7rem', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Role</span>
+            <div style={{ marginTop: '0.25rem' }}>
+              <span style={{
+                display: 'inline-flex', padding: '0.25rem 0.625rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600,
+                background: 'rgba(79,70,229,0.08)', color: '#4F46E5'
+              }}>
+                {role}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
-      <h2 style={{ margin: '0 0 0.5rem', color: '#1E1B4B', fontSize: '1.25rem', fontWeight: 700 }}>{title}</h2>
-      <p style={{ margin: 0, color: '#6B7280', fontSize: '0.9rem' }}>{desc} — Coming soon.</p>
+
+      {/* Change Password Card */}
+      <div style={{
+        background: '#FFFFFF', borderRadius: '16px', padding: '1.75rem',
+        border: '1.5px solid #E4E9F7', boxShadow: '0 2px 8px rgba(79,70,229,0.04)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+          <div style={{
+            width: '40px', height: '40px', borderRadius: '10px',
+            background: 'rgba(79,70,229,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#4F46E5'
+          }}>
+            <Settings size={20} />
+          </div>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#1E1B4B' }}>Security Settings</h3>
+            <p style={{ margin: 0, fontSize: '0.78rem', color: '#9CA3AF' }}>Update your account password.</p>
+          </div>
+        </div>
+
+        {message.text && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.5rem',
+            padding: '0.75rem 1rem', borderRadius: '10px',
+            background: message.type === 'success' ? '#ECFDF5' : '#FFF5F5',
+            border: `1.5px solid ${message.type === 'success' ? '#A7F3D0' : '#FECACA'}`,
+            color: message.type === 'success' ? '#065F46' : '#DC2626',
+            fontSize: '0.8rem', fontWeight: 500, marginBottom: '1rem',
+          }}>
+            <span>{message.text}</span>
+          </div>
+        )}
+
+        <form onSubmit={handlePasswordChange} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div>
+            <label style={labelStyle}>Current Password</label>
+            <input
+              type="password"
+              required
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="Enter current password"
+              style={inputStyle}
+              onFocus={e => { e.target.style.borderColor = '#4F46E5'; e.target.style.background = '#fff'; }}
+              onBlur={e => { e.target.style.borderColor = '#E4E9F7'; e.target.style.background = '#F8FAFF'; }}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>New Password</label>
+            <input
+              type="password"
+              required
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Min. 8 characters"
+              style={inputStyle}
+              onFocus={e => { e.target.style.borderColor = '#4F46E5'; e.target.style.background = '#fff'; }}
+              onBlur={e => { e.target.style.borderColor = '#E4E9F7'; e.target.style.background = '#F8FAFF'; }}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Confirm New Password</label>
+            <input
+              type="password"
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Re-enter new password"
+              style={inputStyle}
+              onFocus={e => { e.target.style.borderColor = '#4F46E5'; e.target.style.background = '#fff'; }}
+              onBlur={e => { e.target.style.borderColor = '#E4E9F7'; e.target.style.background = '#F8FAFF'; }}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              padding: '0.625rem', borderRadius: '10px', border: 'none',
+              background: loading ? '#A5B4FC' : 'linear-gradient(135deg, #4F46E5, #6366F1)',
+              color: '#FFFFFF', fontWeight: 600, fontSize: '0.875rem', cursor: loading ? 'not-allowed' : 'pointer',
+              boxShadow: '0 4px 12px rgba(79,70,229,0.3)', transition: 'all 0.18s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+              marginTop: '0.5rem',
+            }}
+          >
+            {loading ? 'Updating...' : 'Change Password'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

@@ -71,7 +71,7 @@ export default function App() {
           path="/login" 
           element={
             <PublicRoute isAuthenticated={isAuthenticated}>
-              <Login />
+              <Login setIsAuthenticated={setIsAuthenticated} />
             </PublicRoute>
           } 
         />
@@ -87,7 +87,7 @@ export default function App() {
           path="/dashboard" 
           element={
             <ProtectedRoute isAuthenticated={isAuthenticated}>
-              <Dashboard />
+              <Dashboard setIsAuthenticated={setIsAuthenticated} />
             </ProtectedRoute>
           } 
         />

@@ -258,17 +258,18 @@ export default function BorrowManagement() {
       const loggedInRole = localStorage.getItem('role') || 'User';
       const loggedInUserId = localStorage.getItem('user_id') || '';
       const loggedInUsername = localStorage.getItem('username') || '';
+      const isCust = loggedInRole === 'STUDENT' || loggedInRole === 'CUSTOMER';
 
       setFormData({
         bookId: '',
         bookTitle: '',
-        borrowerName: loggedInRole === 'STUDENT' ? loggedInUsername : '',
-        borrowerId: loggedInRole === 'STUDENT' ? loggedInUserId : '',
+        borrowerName: isCust ? loggedInUsername : '',
+        borrowerId: isCust ? loggedInUserId : '',
         borrowDate: today,
         dueDate: twoWeeks,
         status: 'Active',
       });
-      setSelectedUserId(loggedInRole === 'STUDENT' ? loggedInUserId : '');
+      setSelectedUserId(isCust ? loggedInUserId : '');
     }
     setIsModalOpen(true);
   };
@@ -488,7 +489,7 @@ export default function BorrowManagement() {
     let overdue = 0;
     let totalFine = 0;
 
-    const list = role === 'STUDENT' ? transactions.filter(t => t.borrowerId === userId) : transactions;
+    const list = (role === 'STUDENT' || role === 'CUSTOMER') ? transactions.filter(t => t.borrowerId === userId) : transactions;
 
     list.forEach(t => {
       const fineVal = getFine(t.dueDate, t.returnDate, t.status, t.fine);
@@ -508,7 +509,7 @@ export default function BorrowManagement() {
 
   /* ── Filtered transactions ─────────────────────────────────────────────── */
   const filteredTransactions = useMemo(() => {
-    const list = role === 'STUDENT' ? transactions.filter(t => t.borrowerId === userId) : transactions;
+    const list = (role === 'STUDENT' || role === 'CUSTOMER') ? transactions.filter(t => t.borrowerId === userId) : transactions;
     return list.filter(t => {
       const q = searchTerm.toLowerCase();
       const bName = t.borrowerName || userMap[t.borrowerId] || t.borrowerId || '';
@@ -528,20 +529,39 @@ export default function BorrowManagement() {
           <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#1E1B4B' }}>Borrowing Management</h2>
           <p style={{ margin: '0.25rem 0 0', fontSize: '0.82rem', color: '#9CA3AF' }}>Issue library books, monitor due dates, and manage returns.</p>
         </div>
-        <button onClick={() => handleOpenModal()}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.625rem 1.125rem',
-            borderRadius: '10px', border: 'none', cursor: 'pointer',
-            background: 'linear-gradient(135deg, #4F46E5, #6366F1)',
-            color: '#fff', fontWeight: 600, fontSize: '0.875rem',
-            boxShadow: '0 4px 12px rgba(79,70,229,0.35)', transition: 'all 0.18s',
-            fontFamily: 'var(--font-sans)',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(79,70,229,0.45)'; }}
-          onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(79,70,229,0.35)'; }}>
-          <Plus size={16} strokeWidth={2.5} />
-          Issue Book
-        </button>
+        {role !== 'STUDENT' && role !== 'CUSTOMER' && (
+          <button 
+            disabled={role.toUpperCase() === 'USER'}
+            onClick={() => handleOpenModal()}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.625rem 1.125rem',
+              borderRadius: '10px', border: 'none',
+              cursor: role.toUpperCase() === 'USER' ? 'not-allowed' : 'pointer',
+              background: role.toUpperCase() === 'USER' 
+                ? '#E5E7EB' 
+                : 'linear-gradient(135deg, #4F46E5, #6366F1)',
+              color: role.toUpperCase() === 'USER' ? '#9CA3AF' : '#fff',
+              fontWeight: 600, fontSize: '0.875rem',
+              boxShadow: role.toUpperCase() === 'USER' ? 'none' : '0 4px 12px rgba(79,70,229,0.35)',
+              transition: 'all 0.18s',
+              fontFamily: 'var(--font-sans)',
+            }}
+            onMouseEnter={e => {
+              if (role.toUpperCase() !== 'USER') {
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 6px 18px rgba(79,70,229,0.45)';
+              }
+            }}
+            onMouseLeave={e => {
+              if (role.toUpperCase() !== 'USER') {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(79,70,229,0.35)';
+              }
+            }}>
+            <Plus size={16} strokeWidth={2.5} />
+            Issue Book
+          </button>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -713,7 +733,7 @@ export default function BorrowManagement() {
                               <Check size={14} />
                             </button>
                           )}
-                          {role !== 'STUDENT' && (
+                          {role !== 'STUDENT' && role !== 'CUSTOMER' && (
                             <button onClick={() => handleOpenModal(tx)} title="Edit Details"
                               style={{ padding: '0.4rem', borderRadius: '8px', border: '1.5px solid #E4E9F7', background: '#FFFFFF', color: '#4B5563', cursor: 'pointer', transition: 'all 0.18s' }}
                               onMouseEnter={e => { e.currentTarget.style.borderColor = '#4F46E5'; e.currentTarget.style.color = '#4F46E5'; }}
@@ -836,15 +856,15 @@ export default function BorrowManagement() {
                 <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#4B5563', display: 'block', marginBottom: '0.375rem' }}>Borrower Name *</label>
                 <div style={{ position: 'relative' }}>
                   <User size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
-                  <input type="text" required disabled={role === 'STUDENT'} value={formData.borrowerName}
+                  <input type="text" required disabled={role === 'STUDENT' || role === 'CUSTOMER'} value={formData.borrowerName}
                     onChange={e => {
                       setFormData({ ...formData, borrowerName: e.target.value });
                       setSelectedUserId('');
                     }}
-                    style={{ ...inputStyle, paddingLeft: '2rem', background: role === 'STUDENT' ? '#F3F4F6' : '#F8FAFF', color: role === 'STUDENT' ? '#9CA3AF' : '#1E1B4B' }} onFocus={focusInput} onBlur={blurInput} placeholder="e.g. Jane Doe" />
+                    style={{ ...inputStyle, paddingLeft: '2rem', background: (role === 'STUDENT' || role === 'CUSTOMER') ? '#F3F4F6' : '#F8FAFF', color: (role === 'STUDENT' || role === 'CUSTOMER') ? '#9CA3AF' : '#1E1B4B' }} onFocus={focusInput} onBlur={blurInput} placeholder="e.g. Jane Doe" />
 
                   {/* Users suggestions list */}
-                  {role !== 'STUDENT' && formData.borrowerName.trim() !== '' && !selectedUserId && (
+                  {role !== 'STUDENT' && role !== 'CUSTOMER' && formData.borrowerName.trim() !== '' && !selectedUserId && (
                     <div style={{
                       position: 'absolute', zIndex: 10, left: 0, right: 0,
                       border: '1.5px solid #E4E9F7', borderRadius: '10px', background: '#FFFFFF',

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Lock, User, AlertCircle, Loader2 } from 'lucide-react';
 
-export default function Login() {
+export default function Login({ setIsAuthenticated }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -70,6 +70,7 @@ export default function Login() {
       localStorage.setItem('permissions', JSON.stringify(data.data.permissions));
       localStorage.setItem('token_type', data.data.token_type || 'Bearer');
 
+      setIsAuthenticated(true);
       navigate('/dashboard');
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');

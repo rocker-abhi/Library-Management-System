@@ -9,6 +9,8 @@ from src.middlewares.jwt_authentication_middleware import jwt_required
 # pyrefly: ignore [missing-import]
 from src.validators.borrow_validator import BorrowCreateRequest, BorrowResponse, BorrowListResponse, BorrowUpdateRequest
 # pyrefly: ignore [missing-import]
+from src.extensions.exception_handler_extensions import ApplicationException
+from src.exceptions.all_exceptions import ERRORS
 from src.service.borrow_service import BorrowService
 
 borrow_books_router = APIRouter(
@@ -25,6 +27,9 @@ async def create_borrow_record(
     db: Session = Depends(get_db)
 ):
     """Create a new borrow book record."""
+    caller_role = request.state.user.get("role")
+    if caller_role and caller_role.upper() in ["CUSTOMER", "STUDENT", "USER"]:
+        raise ApplicationException(ERRORS["JWT_TOKEN_009"])
     service = BorrowService(db)
     return await service.create_borrow_record(payload)
 
